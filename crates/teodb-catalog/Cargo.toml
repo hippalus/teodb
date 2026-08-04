@@ -15,7 +15,7 @@ bon = { workspace = true }
 iceberg = { workspace = true }
 iceberg-catalog-rest = { workspace = true }
 iceberg-storage-opendal = { workspace = true }
-reqwest = {version = "0.12.28", features = ["json"] }
+reqwest = {version = "0.13.4", features = ["json"] }
 # Async
 tokio = { workspace = true }
 async-trait = { workspace = true }
