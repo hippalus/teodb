@@ -1,0 +1,6 @@
+name = "taxi_analytics"
+dataset_manifest = "../datasets/nyc_taxi.toml"
+sql_dir = "../sql/flat"
+transport = "both"
+warmup_runs = 2
+measured_runs = 5

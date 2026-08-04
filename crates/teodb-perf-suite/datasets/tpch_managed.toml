@@ -1,0 +1,37 @@
+name = "tpch_managed"
+source_kind = "tpch_generated"
+load_mode = "managed_ingest"
+scale_factor = 0.01
+ingest_batch_size = 1000
+
+[[tables]]
+name = "region"
+file = "region.parquet"
+
+[[tables]]
+name = "nation"
+file = "nation.parquet"
+
+[[tables]]
+name = "supplier"
+file = "supplier.parquet"
+
+[[tables]]
+name = "customer"
+file = "customer.parquet"
+
+[[tables]]
+name = "part"
+file = "part.parquet"
+
+[[tables]]
+name = "partsupp"
+file = "partsupp.parquet"
+
+[[tables]]
+name = "orders"
+file = "orders.parquet"
+
+[[tables]]
+name = "lineitem"
+file = "lineitem.parquet"

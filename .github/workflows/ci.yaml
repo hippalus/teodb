@@ -1,0 +1,453 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: Git ref to test. Defaults to the event commit.
+        required: false
+        type: string
+        default: ""
+      run_bench:
+        description: Run the benchmark suite.
+        required: false
+        type: boolean
+        default: false
+      full_container_build:
+        description: Build the container after validating the Dockerfile.
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      run_bench:
+        description: Run the benchmark suite.
+        required: false
+        type: boolean
+        default: false
+      full_container_build:
+        description: Build the container after validating the Dockerfile.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILDKIT_IMAGE: docker.io/moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  PROTOC_INCLUDE: /usr/include
+  RUST_BACKTRACE: "1"
+
+jobs:
+  workflow-lint:
+    name: GitHub Actions lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Run actionlint
+        shell: bash
+        run: |
+          files=()
+          for file in .github/workflows/*.yaml; do
+            files+=("/repo/${file}")
+          done
+          docker run --rm \
+            -v "$PWD:/repo" \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color "${files[@]}"
+
+  lint:
+    name: Rust format, clippy, docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          shared-key: lint
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Check documentation
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --workspace --no-deps --locked
+
+  test:
+    name: Rust tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          shared-key: test
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets --locked
+
+  frontend:
+    name: Frontend typecheck and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  container:
+    name: Container build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx CLI
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          driver: docker
+
+      - name: Start Docker Buildx container builder
+        id: buildx-container
+        run: bash scripts/ci/setup-buildx-builder.sh "$BUILDKIT_IMAGE"
+
+      - name: Validate Dockerfile
+        run: >-
+          docker buildx build
+          --builder "${{ steps.buildx-container.outputs.name }}"
+          --check
+          --file deploy/docker/Dockerfile
+          .
+
+      - name: Build container
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'workflow_dispatch' && inputs.full_container_build) ||
+          (github.event_name == 'workflow_call' && inputs.full_container_build)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          builder: ${{ steps.buildx-container.outputs.name }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-smoke:
+    name: Compose e2e smoke (standalone)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx CLI
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+        with:
+          driver: docker
+
+      - name: Start Docker Buildx container builder
+        id: buildx-container
+        run: bash scripts/ci/setup-buildx-builder.sh "$BUILDKIT_IMAGE"
+
+      - name: Build TeoDB image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          builder: ${{ steps.buildx-container.outputs.name }}
+          load: true
+          tags: teodb:ci
+          cache-from: type=gha,scope=compose-smoke
+          cache-to: type=gha,mode=max,scope=compose-smoke
+
+      - name: Start standalone stack
+        env:
+          TEODB_IMAGE: teodb:ci
+        run: docker compose -f deploy/docker/docker-compose.standalone.yaml up --no-build -d
+
+      - name: Wait for readiness
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/ready >/dev/null 2>&1; then
+              echo "teodb ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "teodb did not become ready in time" >&2
+          exit 1
+
+      - name: Smoke — ingest, flush, query
+        run: |
+          set -euo pipefail
+          base="http://localhost:8080"
+          curl -fsS -X POST "${base}/api/v1/namespaces/default/tables" \
+            -H 'content-type: application/json' \
+            -d '{"name":"ci_smoke","columns":[{"name":"id","data_type":"long","nullable":false},{"name":"v","data_type":"string","nullable":false}]}'
+          curl -fsS -X POST "${base}/api/v1/tables/default/ci_smoke/ingest" \
+            -H 'content-type: application/json' \
+            -d '{"rows":[{"id":1,"v":"a"},{"id":2,"v":"b"},{"id":3,"v":"c"}]}'
+          curl -fsS -X POST "${base}/api/v1/tables/default/ci_smoke/flush"
+          n="$(curl -fsS -X POST "${base}/api/v1/query" \
+            -H 'content-type: application/json' \
+            -d '{"sql":"SELECT COUNT(*) AS n FROM default.ci_smoke"}' | jq -r '.rows[0].n')"
+          echo "row count after flush: ${n}"
+          test "${n}" = "3"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker/docker-compose.standalone.yaml logs --tail=200
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f deploy/docker/docker-compose.standalone.yaml down -v --remove-orphans
+
+  helm-lint:
+    name: Helm lint and render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+
+      - name: Lint and render every supported values profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          chart=deploy/helm/teodb
+          helm lint "${chart}"
+          helm template teodb "${chart}" >/dev/null
+          for values in values-standalone.yaml values-production.yaml; do
+            helm lint "${chart}" -f "${chart}/${values}"
+            helm template teodb "${chart}" -f "${chart}/${values}" >/dev/null
+          done
+
+  multi-writer-release-gate:
+    name: Real multi-writer release gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      TEODB_SKIP_UI_BUILD: "1"
+      TEODB_TEST_CATALOG_URI: http://127.0.0.1:8181
+      TEODB_TEST_WAREHOUSE: s3://teodb
+      AWS_ENDPOINT_URL: http://127.0.0.1:19000
+      AWS_ACCESS_KEY_ID: teodbadmin
+      AWS_SECRET_ACCESS_KEY: teodbadmin123
+      AWS_REGION: us-east-1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          shared-key: multi-writer-release-gate
+
+      - name: Validate RustFS compose render
+        run: >-
+          docker compose
+          -f deploy/docker/docker-compose.rustfs.yaml
+          -f deploy/docker/docker-compose.rustfs.ci.yaml
+          config --quiet
+
+      - name: Start RustFS and Iceberg REST
+        run: >-
+          docker compose
+          -f deploy/docker/docker-compose.rustfs.yaml
+          -f deploy/docker/docker-compose.rustfs.ci.yaml
+          up -d
+
+      - name: Wait for Iceberg REST
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8181/v1/config >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Iceberg REST did not become healthy" >&2
+          exit 1
+
+      - name: Run complete multi-writer gate
+        run: bash scripts/ci/multi-writer-release-gate.sh
+
+      - name: Dump infrastructure logs on failure
+        if: failure()
+        run: >-
+          docker compose
+          -f deploy/docker/docker-compose.rustfs.yaml
+          -f deploy/docker/docker-compose.rustfs.ci.yaml
+          logs --tail=300 rustfs postgres iceberg-rest bucket-init
+
+      - name: Teardown
+        if: always()
+        run: >-
+          docker compose
+          -f deploy/docker/docker-compose.rustfs.yaml
+          -f deploy/docker/docker-compose.rustfs.ci.yaml
+          down -v --remove-orphans
+
+  multi-writer-protocol-budget:
+    name: Multi-writer protocol budget
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TEODB_SKIP_UI_BUILD: "1"
+      TEODB_PROTOCOL_BUDGET_OUT: target/multi-writer-protocol.json
+      TEODB_PROTOCOL_BUDGET_ONLY: "1"
+      TEODB_PROTOCOL_TIMING_MODE: "off"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            jq \
+            libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          shared-key: multi-writer-protocol-budget
+
+      - name: Measure focused protocol budget
+        run: cargo bench -p teodb-catalog --bench multi_writer_protocol --locked
+
+      - name: Report focused protocol measurement
+        run: jq . "${TEODB_PROTOCOL_BUDGET_OUT}"
+
+      - name: Enforce reviewed structural baseline
+        run: bash scripts/ci/check-multi-writer-protocol-budget.sh
+
+  bench:
+    name: Benchmarks
+    if: inputs.run_bench == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          shared-key: bench
+
+      - name: Run benchmarks
+        run: cargo bench --workspace --locked

@@ -1,0 +1,6 @@
+name = "partition_perf"
+dataset_manifest = "../datasets/nested_events.toml"
+sql_dir = "../sql/partition_perf"
+transport = "both"
+warmup_runs = 1
+measured_runs = 3

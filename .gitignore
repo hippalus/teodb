@@ -1,0 +1,12 @@
+/target
+.idea
+.vscode
+*.log
+data
+.DS_Store
+artifacts/
+perf-results/
+
+# Local compose secrets (keep .env.example tracked)
+.env
+deploy/docker/.env

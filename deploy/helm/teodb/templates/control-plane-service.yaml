@@ -1,0 +1,17 @@
+{{- if eq .Values.mode "cluster" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teodb.controlPlaneHost" . }}
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "control-plane") | nindent 4 }}
+  ports:
+    - name: control-plane
+      port: {{ .Values.controlPlane.grpcPort }}
+      targetPort: control-plane
+{{- end }}

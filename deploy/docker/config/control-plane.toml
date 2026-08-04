@@ -1,0 +1,31 @@
+# TeoDB cluster control-plane service.
+#
+# V1 uses one active control plane. It currently hosts the Ballista scheduler;
+# public client REST and Flight traffic goes to homogeneous TeoDB data nodes.
+
+role = "control-plane"
+data_dir = "/app/data"
+
+[catalog]
+type = "rest"
+uri = "http://iceberg-rest:8181"
+warehouse = "s3://teodb"
+
+[cluster]
+scheduler_bind = "0.0.0.0:50050"
+scheduler_addr = "teodb-control-plane:50050"
+heartbeat_interval_secs = 5
+heartbeat_miss_threshold = 3
+
+[storage]
+s3_allow_http = true
+
+[security]
+mode = "plaintext"
+
+[observability]
+log_level = "info"
+log_format = "pretty"
+
+[shutdown]
+drain_timeout_secs = 30

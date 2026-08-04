@@ -1,0 +1,52 @@
+{{- if eq .Values.mode "cluster" }}
+# Headless Service: stable per-pod DNS for executor advertise hostnames.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teodb.dataNodeHeadlessHost" . }}
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data-node
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "data-node") | nindent 4 }}
+  ports:
+    - name: rest
+      port: {{ .Values.service.restPort }}
+      targetPort: rest
+    - name: flight
+      port: {{ .Values.service.flightPort }}
+      targetPort: flight
+    - name: exec-bind
+      port: {{ .Values.internalPorts.executorBind }}
+      targetPort: exec-bind
+    - name: exec-grpc
+      port: {{ .Values.internalPorts.executorGrpc }}
+      targetPort: exec-grpc
+---
+# Client-facing Service: load-balances REST/Flight across ready data-node pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teodb.fullname" . }}
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data-node
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "data-node") | nindent 4 }}
+  ports:
+    - name: rest
+      port: {{ .Values.service.restPort }}
+      targetPort: rest
+    - name: flight
+      port: {{ .Values.service.flightPort }}
+      targetPort: flight
+{{- end }}

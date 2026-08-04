@@ -1,0 +1,23 @@
+apiVersion: v2
+name: teodb
+description: |-
+  TeoDB — a modern OLAP database. Homogeneous data nodes (REST/Flight + WAL ingest +
+  query + flush + Ballista executor) coordinated by a single active control plane,
+  with a single-process standalone mode for dev/test.
+type: application
+# Chart version — bump on every chart change.
+version: 0.1.0
+# Application version — tracks the teodb workspace version / container image tag.
+appVersion: "0.1.0"
+home: https://github.com/hippalus/teodb
+sources:
+  - https://github.com/hippalus/teodb
+keywords:
+  - olap
+  - iceberg
+  - datafusion
+  - ballista
+  - analytics
+maintainers:
+  - name: hippalus
+    url: https://github.com/hippalus

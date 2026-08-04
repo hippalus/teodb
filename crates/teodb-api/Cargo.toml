@@ -1,0 +1,60 @@
+[package]
+name = "teodb-api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "REST, Arrow Flight, authentication, and API orchestration for TeoDB"
+license.workspace = true
+
+[dependencies]
+teodb-core = { path = "../teodb-core" }
+teodb-ingest = { path = "../teodb-ingest" }
+teodb-query = { path = "../teodb-query" }
+teodb-storage = { path = "../teodb-storage" }
+
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
+
+axum = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+http-body = { workspace = true }
+http-body-util = { workspace = true }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+prost = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+tracing = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+
+parking_lot = { workspace = true }
+moka = { workspace = true }
+
+uuid = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+chrono = { workspace = true }
+jsonwebtoken = { workspace = true }
+
+[dev-dependencies]
+teodb-test-support = { path = "../teodb-test-support" }
+criterion = { workspace = true }
+tempfile = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+proptest = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[bench]]
+name = "query_json"
+harness = false
+
+[lints]
+workspace = true

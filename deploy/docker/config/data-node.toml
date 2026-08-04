@@ -1,0 +1,65 @@
+# TeoDB homogeneous production data node.
+#
+# Every data node serves REST/Flight, accepts ingest/query/DDL, owns WAL/buffers,
+# flushes to Iceberg, and runs a Ballista executor.
+
+role = "data-node"
+data_dir = "/app/data"
+
+[server]
+rest_bind = "0.0.0.0:8080"
+flight_bind = "0.0.0.0:8815"
+
+[catalog]
+type = "rest"
+uri = "http://iceberg-rest:8181"
+warehouse = "s3://teodb"
+
+[wal]
+fsync_on_append = true
+max_prepared_files = 10000
+max_prepared_bytes = 16777216
+
+[cluster]
+# cluster_id, node_id, and writer_slot are injected per service by Compose.
+# Never clone a data-node WAL volume or reuse one writer slot concurrently.
+scheduler_enabled = false
+scheduler_addr = "teodb-control-plane:50050"
+max_writer_checkpoints_per_table = 32
+# Hostname this data node's executor advertises to the cluster. Must be unique and
+# routable per data node — the compose file passes it via --executor-advertise-host.
+# executor_advertise_host = "teodb-data-node-1"
+executor_bind = "0.0.0.0:50051"
+executor_grpc_bind_port = 50052
+executor_task_slots = 4
+heartbeat_interval_secs = 5
+heartbeat_miss_threshold = 3
+
+[storage]
+cache_dir = "/app/data/cache"
+spill_dir = "/app/data/spill"
+cache_max_bytes = 10737418240
+s3_allow_http = true
+
+[query]
+memory_pool_bytes = 4294967296
+batch_size = 8192
+
+[ingest]
+buffer_max_bytes = 536870912
+flush_interval_secs = 10
+
+[maintenance]
+# Snapshot expiration is deliberately opt-in until metadata expiration is
+# committed through a safe Iceberg protocol.
+snapshot_retention_secs = 0
+
+[security]
+mode = "plaintext"
+
+[observability]
+log_level = "info"
+log_format = "pretty"
+
+[shutdown]
+drain_timeout_secs = 30

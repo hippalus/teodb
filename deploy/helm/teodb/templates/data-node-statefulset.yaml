@@ -1,0 +1,182 @@
+{{- if eq .Values.mode "cluster" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "teodb.fullname" . }}-data-node
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data-node
+spec:
+  serviceName: {{ include "teodb.dataNodeHeadlessHost" . }}
+  replicas: {{ .Values.dataNode.replicas }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "data-node") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "data-node") | nindent 8 }}
+        {{- with .Values.dataNode.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include "teodb.dataNodeConfig" . | sha256sum }}
+        {{- with .Values.dataNode.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "teodb.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Drain budget + Ballista executor graceful stop need headroom over the
+      # configured drain_timeout_secs.
+      terminationGracePeriodSeconds: {{ add .Values.shutdown.drainTimeoutSecs 15 }}
+      {{- with .Values.dataNode.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dataNode.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dataNode.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dataNode.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: teodb
+          image: {{ include "teodb.image" (dict "root" . "image" .Values.dataNode.image) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --config
+            - {{ include "teodb.configDir" . }}/data-node.toml
+            # Per-pod stable DNS so the control plane and peers reach this executor by
+            # name, not pod IP. Kubernetes expands $(VAR) in args.
+            - --executor-advertise-host
+            - $(POD_NAME).{{ include "teodb.dataNodeHeadlessHost" . }}.$(POD_NAMESPACE).svc.cluster.local
+          env:
+            {{- include "teodb.commonEnv" . | nindent 12 }}
+            - name: TEODB__CLUSTER__CLUSTER_ID
+              {{- if .Values.cluster.id }}
+              value: {{ include "teodb.clusterId" . | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "teodb.secretName" . }}
+                  key: {{ .Values.secret.keys.clusterId }}
+              {{- end }}
+            # The StatefulSet pod name includes its stable ordinal. Reusing it
+            # for both operational node identity and writer slot prevents
+            # checkpoint-key churn across restarts and scale down/up.
+            - name: TEODB__CLUSTER__NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TEODB__CLUSTER__WRITER_SLOT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: rest
+              containerPort: {{ .Values.service.restPort }}
+            - name: flight
+              containerPort: {{ .Values.service.flightPort }}
+            - name: exec-bind
+              containerPort: {{ .Values.internalPorts.executorBind }}
+            - name: exec-grpc
+              containerPort: {{ .Values.internalPorts.executorGrpc }}
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: rest
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: rest
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: rest
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- with .Values.dataNode.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ include "teodb.configDir" . }}
+              readOnly: true
+            - name: data
+              mountPath: {{ include "teodb.dataDir" . }}
+            - name: cache
+              mountPath: {{ include "teodb.cacheDir" . }}
+            - name: spill
+              mountPath: {{ include "teodb.spillDir" . }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "teodb.fullname" . }}-config
+        - name: spill
+          emptyDir: {}
+        {{- if not .Values.dataNode.persistence.cache.enabled }}
+        - name: cache
+          emptyDir: {}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "teodb.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.dataNode.persistence.wal.accessModes | nindent 10 }}
+        {{- if .Values.dataNode.persistence.wal.storageClass }}
+        storageClassName: {{ .Values.dataNode.persistence.wal.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.dataNode.persistence.wal.size | quote }}
+    {{- if .Values.dataNode.persistence.cache.enabled }}
+    - metadata:
+        name: cache
+        labels:
+          {{- include "teodb.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.dataNode.persistence.cache.accessModes | nindent 10 }}
+        {{- if .Values.dataNode.persistence.cache.storageClass }}
+        storageClassName: {{ .Values.dataNode.persistence.cache.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.dataNode.persistence.cache.size | quote }}
+    {{- end }}
+{{- end }}

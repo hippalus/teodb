@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.local
+components.d.ts

@@ -1,0 +1,637 @@
+openapi: 3.0.3
+info:
+  title: TeoDB REST API
+  version: "0.2.0"
+  description: |
+    REST API for TeoDB — a modern OLAP database over Apache Iceberg.
+
+    Every data node serves this API on its REST port (default 8080) and
+    accepts query, DDL, ingest, and flush traffic. Errors are returned as
+    RFC 9457 problem details (`application/problem+json`).
+
+    Hand-maintained spec — keep in sync with the axum routers under
+    `crates/teodb-ingest/src/http`.
+servers:
+  - url: http://localhost:8080
+    description: Local data node / standalone
+
+security:
+  - { }   # most endpoints are open in plaintext mode
+
+tags:
+  - name: Health
+  - name: Query
+  - name: Ingest
+  - name: DDL
+  - name: Admin
+
+paths:
+  /live:
+    get:
+      tags: [ Health ]
+      summary: Liveness probe
+      security: [ ]
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: alive }
+
+  /ready:
+    get:
+      tags: [ Health ]
+      summary: Readiness probe
+      description: |
+        Returns 200 only when the data node can serve traffic. In cluster mode this
+        includes an executor-quorum check (`cluster.min_executors`).
+      security: [ ]
+      responses:
+        "200":
+          description: Ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessResponse" }
+        "503":
+          description: Not ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReadinessResponse" }
+
+  /api/v1/query:
+    post:
+      tags: [ Query ]
+      summary: Execute a SQL query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueryRequest" }
+      responses:
+        "200":
+          description: Result set (row count clamped to `limit`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QueryResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/query/explain:
+    post:
+      tags: [ Query ]
+      summary: Explain a query plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QueryRequest" }
+      responses:
+        "200":
+          description: Rendered physical plan.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExplainResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/tables/{namespace}/{table}/ingest:
+    post:
+      tags: [ Ingest ]
+      summary: Ingest JSON rows
+      description: |
+        Appends rows to a table's WAL + write buffer. The table is auto-created
+        from the row schema if it does not exist. Supply `idempotency_key` to
+        make a retry safe — a duplicate returns `200` with the original receipt
+        and `deduplicated: true`.
+
+        Visibility: a `202` acknowledges WAL durability, **not** query
+        visibility. Ingested rows become queryable only after a flush commits
+        them to the catalog (call the flush endpoint or wait for the background
+        flush). See `docs/CONSISTENCY.md`.
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Table"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IngestRequest" }
+      responses:
+        "202":
+          description: Rows accepted.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestResponse" }
+        "200":
+          description: Duplicate idempotency key — original receipt returned.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestResponse" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/tables/{namespace}/{table}/flush:
+    post:
+      tags: [ Ingest ]
+      summary: Flush a table's buffer to Iceberg
+      description: |
+        Flushes the receiving data node's buffer for this table to object storage and
+        commits an Iceberg snapshot. A no-op (with `no_pending_data`) when this
+        data node holds no buffered rows for the table.
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Table"
+      responses:
+        "200":
+          description: Flush completed (or nothing to flush).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FlushResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/namespaces:
+    get:
+      tags: [ DDL ]
+      summary: List namespaces
+      responses:
+        "200":
+          description: Namespace names.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  namespaces:
+                    type: array
+                    items: { type: string }
+    post:
+      tags: [ DDL ]
+      summary: Create a namespace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ namespace ]
+              properties:
+                namespace: { type: string, example: analytics }
+      responses:
+        "201": { description: Created. }
+        "401": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/namespaces/{namespace}:
+    get:
+      tags: [ DDL ]
+      summary: Get a namespace
+      parameters: [ { $ref: "#/components/parameters/Namespace" } ]
+      responses:
+        "200": { description: Namespace details. }
+        "404": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [ DDL ]
+      summary: Drop a namespace
+      parameters: [ { $ref: "#/components/parameters/Namespace" } ]
+      responses:
+        "204": { description: Dropped. }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/namespaces/{namespace}/tables:
+    get:
+      tags: [ DDL ]
+      summary: List tables in a namespace
+      parameters: [ { $ref: "#/components/parameters/Namespace" } ]
+      responses:
+        "200":
+          description: Tables.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TableSummary" }
+    post:
+      tags: [ DDL ]
+      summary: Create a table
+      parameters: [ { $ref: "#/components/parameters/Namespace" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTableRequest" }
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/namespaces/{namespace}/tables/{table}:
+    get:
+      tags: [ DDL ]
+      summary: Get table detail
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Table"
+      responses:
+        "200":
+          description: Table schema + properties.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TableDetail" }
+        "404": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [ DDL ]
+      summary: Drop a table
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Table"
+        - name: purge
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: When true, delete objects under the table storage prefix after dropping catalog metadata.
+      responses:
+        "204": { description: Dropped. }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/admin/status:
+    get:
+      tags: [ Admin ]
+      summary: Server status
+      security: [ { bearerAuth: [ ] } ]
+      responses:
+        "200":
+          description: Server status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusResponse" }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/admin/tables:
+    get:
+      tags: [ Admin ]
+      summary: All tables across namespaces
+      security: [ { bearerAuth: [ ] } ]
+      responses:
+        "200":
+          description: Tables.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TableSummary" }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/admin/cluster:
+    get:
+      tags: [ Admin ]
+      summary: Cluster status
+      security: [ { bearerAuth: [ ] } ]
+      responses:
+        "200":
+          description: Cluster topology + connections.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClusterStatusResponse" }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/admin/flush-blocked:
+    get:
+      tags: [ Admin ]
+      summary: List table-local unresolved append commits
+      description: |
+        Returns immutable prepared-commit identities whose catalog outcome is
+        still unknown. These tables reject new writes until exact resolution;
+        unrelated tables remain available.
+      security: [ { bearerAuth: [ ] } ]
+      responses:
+        "200":
+          description: Blocked flushes owned by this writer.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BlockedFlushResponse" }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /api/v1/admin/flush-blocked/{namespace}/{table}/recheck:
+    post:
+      tags: [ Admin ]
+      summary: Recheck one blocked exact commit
+      description: |
+        Performs an authoritative exact-status check and, only when proven not
+        committed, resumes the same immutable commit ID. There is no force,
+        discard, or assume-success operation.
+      security: [ { bearerAuth: [ ] } ]
+      parameters:
+        - $ref: "#/components/parameters/Namespace"
+        - $ref: "#/components/parameters/Table"
+      responses:
+        "200":
+          description: Exact recheck completed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BlockedFlushRecheckResponse" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+
+  /metrics:
+    get:
+      tags: [ Admin ]
+      summary: Prometheus metrics
+      security: [ { bearerAuth: [ ] } ]
+      responses:
+        "200":
+          description: Prometheus text exposition format.
+          content:
+            text/plain:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Problem" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Admin bearer token (`security.admin_token`).
+
+  parameters:
+    Namespace:
+      name: namespace
+      in: path
+      required: true
+      schema: { type: string }
+      example: default
+    Table:
+      name: table
+      in: path
+      required: true
+      schema: { type: string }
+      example: events
+
+  responses:
+    Problem:
+      description: RFC 9457 problem detail.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetail" }
+
+  schemas:
+    QueryRequest:
+      type: object
+      required: [ sql ]
+      properties:
+        sql: { type: string, example: "SELECT * FROM default.events LIMIT 10" }
+        limit:
+          type: integer
+          description: Max rows returned (server clamps to a hard ceiling).
+          example: 1000
+
+    QueryResponse:
+      type: object
+      properties:
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/ColumnInfo" }
+        rows:
+          type: array
+          items: { type: object, additionalProperties: true }
+        row_count: { type: integer }
+        elapsed_ms: { type: integer }
+        _links: { type: object, additionalProperties: true }
+
+    ColumnInfo:
+      type: object
+      properties:
+        name: { type: string }
+        data_type: { type: string, example: Int64 }
+
+    ExplainResponse:
+      type: object
+      properties:
+        plan: { type: string }
+        elapsed_ms: { type: integer }
+
+    IngestRequest:
+      type: object
+      required: [ rows ]
+      properties:
+        rows:
+          type: array
+          items: { type: object, additionalProperties: true }
+          example: [ { id: 1, region: "us" }, { id: 2, region: "eu" } ]
+        idempotency_key:
+          type: string
+          description: Optional dedupe key, remembered by the receiving writer within the WAL window.
+
+    IngestResponse:
+      type: object
+      required: [ accepted_rows, batch_id, writer_id, generation, deduplicated ]
+      properties:
+        accepted_rows: { type: integer }
+        batch_id: { type: string, format: uuid }
+        writer_id:
+          type: string
+          format: uuid
+          description: Stable writer identity that owns this receipt and generation.
+        generation:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Writer-local generation; interpret only with writer_id and table UUID.
+        deduplicated:
+          type: boolean
+          description: True when this was a duplicate of a prior idempotency key.
+
+    FlushResponse:
+      type: object
+      properties:
+        status: { type: string, example: flushed }
+        rows_flushed: { type: integer }
+
+    CreateTableRequest:
+      type: object
+      required: [ name, columns ]
+      properties:
+        name: { type: string, example: events }
+        columns:
+          type: array
+          items: { $ref: "#/components/schemas/ColumnDefinition" }
+        partition_by:
+          type: array
+          items: { $ref: "#/components/schemas/PartitionField" }
+        properties:
+          type: object
+          additionalProperties: { type: string }
+
+    ColumnDefinition:
+      type: object
+      required: [ name, data_type ]
+      properties:
+        name: { type: string }
+        data_type:
+          type: string
+          description: 'Iceberg/SQL type, e.g. "long", "string", "timestamp", "double".'
+        nullable: { type: boolean, default: false }
+
+    PartitionField:
+      type: object
+      required: [ column, transform ]
+      properties:
+        column: { type: string }
+        transform:
+          type: string
+          description: identity | year | month | day | hour | bucket(N) | truncate(W)
+          example: "day"
+
+    TableSummary:
+      type: object
+      properties:
+        name: { type: string }
+        namespace: { type: string }
+        column_count: { type: integer }
+        row_count: { type: integer }
+        size_bytes: { type: integer }
+        partitioned: { type: boolean }
+
+    TableDetail:
+      type: object
+      properties:
+        name: { type: string }
+        namespace: { type: string }
+        current_schema_id: { type: integer }
+        current_snapshot_id: { type: integer, nullable: true }
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              field_id: { type: integer }
+              name: { type: string }
+              data_type: { type: string }
+              nullable: { type: boolean }
+        properties:
+          type: object
+          additionalProperties: { type: string }
+
+    StatusResponse:
+      type: object
+      properties:
+        server_version: { type: string }
+        uptime_seconds: { type: integer }
+        tables_count: { type: integer }
+        total_rows: { type: integer }
+        memory_usage_bytes: { type: integer }
+        components:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              status: { type: string }
+              message: { type: string, nullable: true }
+
+    ClusterStatusResponse:
+      type: object
+      required:
+        - mode
+        - cluster_id
+        - node_id
+        - writer_id
+        - writer_epoch
+        - recovery_status
+        - uptime_seconds
+        - pending_tables
+        - blocked_tables
+        - workers
+        - connections
+      properties:
+        mode: { type: string }
+        cluster_id: { type: string, format: uuid }
+        node_id: { type: string }
+        writer_id: { type: string, format: uuid }
+        writer_epoch: { type: integer, format: int64 }
+        recovery_status: { type: string, enum: [ complete ] }
+        uptime_seconds: { type: integer, format: int64 }
+        pending_tables: { type: integer }
+        blocked_tables: { type: integer }
+        wal_segments: { type: integer, nullable: true }
+        wal_bytes: { type: integer, format: int64, nullable: true }
+        wal_error: { type: string, nullable: true }
+        workers:
+          type: array
+          items: { type: object, additionalProperties: true }
+        connections:
+          type: array
+          items: { type: object, additionalProperties: true }
+        scheduler:
+          type: object
+          nullable: true
+          additionalProperties: true
+        active_jobs: { type: integer, nullable: true }
+
+    BlockedFlushResponse:
+      type: object
+      required:
+        - namespace
+        - table
+        - table_uuid
+        - writer_id
+        - writer_epoch
+        - commit_id
+        - generation_lo
+        - generation_hi
+        - blocked_since_ms
+        - last_recheck_ms
+        - status_check_attempts
+        - last_error_class
+      properties:
+        namespace: { type: string }
+        table: { type: string }
+        table_uuid: { type: string, format: uuid }
+        writer_id: { type: string, format: uuid }
+        writer_epoch: { type: integer, format: int64 }
+        commit_id: { type: string, format: uuid }
+        generation_lo: { type: integer, format: int64, minimum: 1 }
+        generation_hi: { type: integer, format: int64, minimum: 1 }
+        blocked_since_ms: { type: integer, format: int64 }
+        last_recheck_ms: { type: integer, format: int64 }
+        status_check_attempts: { type: integer }
+        last_error_class: { type: string, example: commit_status_unknown }
+
+    BlockedFlushRecheckResponse:
+      type: object
+      required: [ status ]
+      properties:
+        status:
+          type: string
+          enum: [ committed, not_blocked ]
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status: { type: string, example: ready }
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              status: { type: string, enum: [ pass, fail ] }
+              detail: { type: string, nullable: true }
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457 problem detail.
+      properties:
+        type: { type: string, example: "about:blank" }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }

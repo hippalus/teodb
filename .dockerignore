@@ -1,0 +1,8 @@
+target/
+.git/
+.planning/
+data/
+*.md
+!README.md
+deploy/docker/Dockerfile
+artifacts

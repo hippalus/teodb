@@ -1,0 +1,48 @@
+# TeoDB Standalone — all roles in a single process.
+#
+# Usage:
+#   teodb --config deploy/docker/config/standalone.toml
+
+role = "standalone"
+data_dir = "/app/data"
+
+[server]
+rest_bind = "0.0.0.0:8080"
+flight_bind = "0.0.0.0:8815"
+
+[catalog]
+type = "rest"
+uri = "http://iceberg-rest:8181"
+warehouse = "s3://teodb"
+
+[wal]
+fsync_on_append = true
+
+[storage]
+cache_dir = "/app/data/cache"
+spill_dir = "/app/data/spill"
+cache_max_bytes = 10737418240      # 10 GiB — set to 0 to disable SSD cache
+cache_max_per_object_bytes = 536870912  # 512 MiB
+s3_allow_http = true
+
+[query]
+memory_pool_bytes = 4294967296   # 4 GiB
+batch_size = 8192
+
+[ingest]
+buffer_max_bytes = 536870912     # 512 MiB
+flush_interval_secs = 10
+
+[security]
+mode = "plaintext"
+
+[observability]
+log_level = "info"
+log_format = "json"
+
+[runtime]
+max_blocking_threads = 512
+thread_stack_size = 8388608      # 8 MiB
+
+[shutdown]
+drain_timeout_secs = 30

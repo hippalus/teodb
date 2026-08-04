@@ -1,0 +1,4 @@
+name = "tpch_managed"
+dataset_manifest = "../datasets/tpch_managed.toml"
+sql_dir = "../sql/tpch"
+transport = "flight"

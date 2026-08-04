@@ -1,0 +1,14 @@
+# Sustained-ingest benchmark scenario
+#
+# Measures throughput and latency of repeated JSON ingest + flush cycles
+# over a larger synthetic dataset (50,000 rows in 100-row batches).
+# Use this scenario to detect regressions in write-path throughput.
+#
+# Usage:
+#   cargo run -p teodb-perf-suite -- run-suite \
+#     --scenario crates/teodb-perf-suite/scenarios/sustained_ingest.toml
+
+name = "sustained_ingest"
+dataset_manifest = "../datasets/sustained_ingest.toml"
+sql_dir = "../sql/sustained_ingest"
+transport = "admin_query"

@@ -1,0 +1,67 @@
+# Flight SQL Operations Benchmark
+#
+# Benchmarks every implemented Flight SQL operation against TeoDB:
+#   - Handshake (authentication)
+#   - Metadata: catalogs, schemas, tables, SQL info
+#   - Query execution: simple SELECT, aggregation, TPC-H analytical queries
+#
+# Usage:
+#   cargo run -p teodb-perf-suite -- run-flight-bench \
+#     --bench crates/teodb-perf-suite/scenarios/flight_ops.toml
+
+name = "flight_sql_operations"
+warmup_runs = 2
+measured_runs = 5
+
+# ── Authentication ──────────────────────────────────────────────────
+
+[[ops]]
+name = "handshake"
+op = "handshake"
+user = "admin"
+password = "password"
+
+# ── Metadata operations ────────────────────────────────────────────
+
+[[ops]]
+name = "get_catalogs"
+op = "get_catalogs"
+
+[[ops]]
+name = "get_schemas"
+op = "get_schemas"
+
+[[ops]]
+name = "get_schemas_filtered"
+op = "get_schemas"
+catalog = "teodb"
+
+[[ops]]
+name = "get_tables"
+op = "get_tables"
+
+[[ops]]
+name = "get_tables_with_schema"
+op = "get_tables"
+include_schema = true
+
+[[ops]]
+name = "get_sql_info"
+op = "get_sql_info"
+
+# ── Query execution ────────────────────────────────────────────────
+
+[[ops]]
+name = "query_select_1"
+op = "query"
+sql = "SELECT 1 AS x"
+
+[[ops]]
+name = "query_show_tables"
+op = "query"
+sql = "SHOW TABLES"
+
+[[ops]]
+name = "query_information_schema"
+op = "query"
+sql = "SELECT table_name, table_type FROM information_schema.tables"

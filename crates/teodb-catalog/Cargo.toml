@@ -1,0 +1,41 @@
+[package]
+name = "teodb-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Iceberg REST catalog adapter for TeoDB"
+license.workspace = true
+
+[dependencies]
+teodb-core = { path = "../teodb-core" }
+backon = { workspace = true }
+bon = { workspace = true }
+
+# Iceberg
+iceberg = { workspace = true }
+iceberg-catalog-rest = { workspace = true }
+iceberg-storage-opendal = { workspace = true }
+reqwest = {version = "0.12.28", features = ["json"] }
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true }
+futures = { workspace = true }
+teodb-storage = { path = "../teodb-storage" }
+tempfile = { workspace = true }
+
+[[bench]]
+name = "multi_writer_protocol"
+harness = false

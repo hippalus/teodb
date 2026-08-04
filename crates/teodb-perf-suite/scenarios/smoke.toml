@@ -1,0 +1,6 @@
+name = "smoke"
+dataset_manifest = "../datasets/tpch.toml"
+sql_dir = "../sql/smoke"
+transport = "rest"
+warmup_runs = 2
+measured_runs = 5

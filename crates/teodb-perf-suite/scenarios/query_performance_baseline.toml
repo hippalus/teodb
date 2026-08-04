@@ -1,0 +1,4 @@
+name = "query_performance_baseline"
+dataset_manifest = "../datasets/tpch_managed.toml"
+sql_dir = "../sql/query_performance_baseline"
+transport = "admin_query"

@@ -1,0 +1,37 @@
+TeoDB ({{ .Chart.AppVersion }}) installed as "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Mode: {{ .Values.mode }}
+{{- if eq .Values.mode "cluster" }}
+  Control plane: Deployment {{ include "teodb.fullname" . }}-control-plane (gRPC :{{ .Values.controlPlane.grpcPort }})
+  Data nodes   : StatefulSet {{ include "teodb.fullname" . }}-data-node ({{ .Values.dataNode.replicas }} replica(s))
+{{- else }}
+  Standalone: StatefulSet {{ include "teodb.fullname" . }} (single process)
+{{- end }}
+
+Client endpoints (Service {{ include "teodb.fullname" . }}):
+  REST   : {{ .Values.service.restPort }}
+  Flight : {{ .Values.service.flightPort }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.ingress.path }}
+{{- else }}
+
+Port-forward to reach the REST API locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "teodb.fullname" . }} {{ .Values.service.restPort }}:{{ .Values.service.restPort }}
+
+Then:
+  curl localhost:{{ .Values.service.restPort }}/ready
+  curl -X POST localhost:{{ .Values.service.restPort }}/api/v1/query \
+    -H 'content-type: application/json' -d '{"sql":"SELECT 1"}'
+{{- end }}
+
+{{- if and .Values.secret.create (not .Values.secret.existingSecret) (not .Values.secret.adminToken) }}
+
+WARNING: no admin token set (secret.adminToken empty) — admin endpoints and
+/metrics are UNAUTHENTICATED. Set secret.adminToken or secret.existingSecret
+for production.
+{{- end }}
+
+Run the bundled smoke test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

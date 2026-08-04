@@ -1,0 +1,119 @@
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      data-platform:
+        patterns:
+          - "arrow*"
+          - "parquet"
+          - "datafusion*"
+          - "ballista*"
+          - "iceberg*"
+        update-types:
+          - minor
+          - patch
+      rust-minor-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "arrow*"
+          - "parquet"
+          - "datafusion*"
+          - "ballista*"
+          - "iceberg*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # These dependency families must be upgraded together and tested manually.
+      - dependency-name: "arrow*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: parquet
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "datafusion*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "ballista*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "iceberg*"
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:15"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - frontend
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(actions)"
+    groups:
+      actions-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: docker
+    directory: /deploy/docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:45"
+      timezone: Europe/Amsterdam
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      docker-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

@@ -1,0 +1,4 @@
+name = "json_ingest"
+dataset_manifest = "../datasets/synthetic_managed.toml"
+sql_dir = "../sql/json_ingest"
+transport = "admin_query"

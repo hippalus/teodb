@@ -1,0 +1,107 @@
+# Object store (RustFS) + Iceberg REST catalog for local development.
+#
+# Infrastructure only — run TeoDB natively against it:
+#
+#   docker compose -f deploy/docker/docker-compose.rustfs.yaml up -d
+#   cargo run -p teodb-server -- --config config/dev.toml
+#
+# RustFS Console: http://localhost:19001/rustfs/console/ (teodbadmin / teodbadmin123)
+#
+# RustFS is pre-1.0 (1.0.0-beta line); it is the S3 backend for the dev and
+# standalone stacks. Production deployments point at whatever S3-compatible
+# endpoint the environment provides (see docker-compose.production.yaml).
+
+# Distinct project name so this dev stack gets its own containers and volumes
+# (teodb-rustfs_*), isolated from the standalone / production stacks.
+name: teodb-rustfs
+
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      # Single data dir. The upstream four-dir layout (/data/rustfs{0..3}) turns
+      # on erasure coding, which refuses to start unless each dir is a distinct
+      # physical disk — four dirs in one Docker volume all resolve to the same
+      # device. One dir is the right shape for a single-node dev stack anyway.
+      RUSTFS_VOLUMES: /data/rustfs0
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: teodbadmin
+      RUSTFS_SECRET_KEY: teodbadmin123
+      RUSTFS_OBS_LOGGER_LEVEL: info
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - rustfs-data:/data
+    restart: unless-stopped
+
+  # RustFS ships no readiness probe we can rely on across image revisions, so the
+  # bucket bootstrap polls the S3 endpoint itself and every dependent service
+  # gates on this container exiting successfully.
+  bucket-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - rustfs
+    environment:
+      AWS_ACCESS_KEY_ID: teodbadmin
+      AWS_SECRET_ACCESS_KEY: teodbadmin123
+      AWS_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 60); do
+          aws --endpoint-url http://rustfs:9000 s3 ls >/dev/null 2>&1 && break
+          echo 'waiting for rustfs...'; sleep 2
+        done
+        aws --endpoint-url http://rustfs:9000 s3 mb s3://teodb 2>/dev/null || true
+        echo 'Bucket teodb ready'
+    restart: "no"
+
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: iceberg_catalog
+      POSTGRES_USER: iceberg
+      POSTGRES_PASSWORD: iceberg
+    volumes:
+      - pg-data:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iceberg -d iceberg_catalog"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:latest
+    environment:
+      CATALOG_WAREHOUSE: s3://teodb/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://rustfs:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_URI: jdbc:postgresql://postgres:5432/iceberg_catalog
+      CATALOG_JDBC_USER: iceberg
+      CATALOG_JDBC_PASSWORD: iceberg
+      AWS_ACCESS_KEY_ID: teodbadmin
+      AWS_SECRET_ACCESS_KEY: teodbadmin123
+      AWS_REGION: us-east-1
+    ports:
+      - "8181:8181"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bucket-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8181'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  rustfs-data:
+  pg-data:

@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "ratio_regression_tolerance": 0.1,
+  "maximums": {
+    "metadata_bytes_32_writers": 8192,
+    "commit_payload_bytes_32_writers": 8192,
+    "same_table_16_rebases": 240,
+    "same_table_16_conflicts": 32
+  },
+  "ratios": {
+    "same_table_16_to_2_latency": 15.0,
+    "same_to_different_table_16_latency": 237.66
+  },
+  "provenance": {
+    "source_revision": "ee2fff21aa7ed830efacc16abcd100569ebe14ce",
+    "source_branch": "main",
+    "source_state": "production protocol sources match source_revision; benchmark harness is supplied by this PR",
+    "captured_at_utc": "2026-08-01T23:46:04Z",
+    "run_count": 5,
+    "waves_per_scenario": 5,
+    "aggregation": "reviewed thresholds validated against every raw run; thresholds were not re-baselined",
+    "runner": {
+      "os": "Darwin 25.6.0",
+      "arch": "arm64",
+      "rustc": "1.97.1 (8bab26f4f 2026-07-14)"
+    },
+    "capture_command": "TEODB_PROTOCOL_BUDGET_OUT=target/multi-writer-protocol-run-N.json TEODB_PROTOCOL_BUDGET_ONLY=1 cargo bench -p teodb-catalog --bench multi_writer_protocol --locked",
+    "runs": [
+      {
+        "structural": {
+          "metadata_bytes_32_writers": 6276,
+          "commit_payload_bytes_32_writers": 5928,
+          "same_table_16_successful_commits": 62,
+          "same_table_16_rebases": 190,
+          "same_table_16_conflicts": 18,
+          "same_table_16_manifest_files": 62
+        },
+        "ratios": {
+          "same_table_16_to_2_latency": 14.901434499765363,
+          "same_to_different_table_16_latency": 249.034753190835
+        }
+      },
+      {
+        "structural": {
+          "metadata_bytes_32_writers": 6276,
+          "commit_payload_bytes_32_writers": 5928,
+          "same_table_16_successful_commits": 62,
+          "same_table_16_rebases": 191,
+          "same_table_16_conflicts": 18,
+          "same_table_16_manifest_files": 62
+        },
+        "ratios": {
+          "same_table_16_to_2_latency": 14.970565532377915,
+          "same_to_different_table_16_latency": 224.94969256567916
+        }
+      },
+      {
+        "structural": {
+          "metadata_bytes_32_writers": 6276,
+          "commit_payload_bytes_32_writers": 5928,
+          "same_table_16_successful_commits": 63,
+          "same_table_16_rebases": 194,
+          "same_table_16_conflicts": 17,
+          "same_table_16_manifest_files": 63
+        },
+        "ratios": {
+          "same_table_16_to_2_latency": 14.894717279189704,
+          "same_to_different_table_16_latency": 222.03837096550768
+        }
+      },
+      {
+        "structural": {
+          "metadata_bytes_32_writers": 6276,
+          "commit_payload_bytes_32_writers": 5928,
+          "same_table_16_successful_commits": 67,
+          "same_table_16_rebases": 184,
+          "same_table_16_conflicts": 13,
+          "same_table_16_manifest_files": 67
+        },
+        "ratios": {
+          "same_table_16_to_2_latency": 15.426543031005506,
+          "same_to_different_table_16_latency": 240.2601543164944
+        }
+      },
+      {
+        "structural": {
+          "metadata_bytes_32_writers": 6276,
+          "commit_payload_bytes_32_writers": 5928,
+          "same_table_16_successful_commits": 65,
+          "same_table_16_rebases": 182,
+          "same_table_16_conflicts": 15,
+          "same_table_16_manifest_files": 65
+        },
+        "ratios": {
+          "same_table_16_to_2_latency": 15.30439279856866,
+          "same_to_different_table_16_latency": 230.40754769921438
+        }
+      }
+    ]
+  }
+}

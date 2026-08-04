@@ -1,0 +1,6 @@
+name = "overture_places"
+table_name = "overture_places"
+source_kind = "external_parquet"
+load_mode = "external_parquet"
+source_path = "datasets/overture-maps-data/overture_places.zstd.parquet"
+

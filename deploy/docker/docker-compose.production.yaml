@@ -1,0 +1,278 @@
+# TeoDB production-like single-host stack.
+#
+# Client endpoints:
+#   REST via HAProxy:       http://localhost:8080
+#   Flight via HAProxy:     http://localhost:8815
+#   RustFS Console:         http://localhost:9001/rustfs/console/
+#
+# HAProxy only load-balances. Every TeoDB data node accepts query, DDL, ingest,
+# flush, and metadata traffic on the same public REST/Flight endpoints.
+#
+# Credentials come from `.env` (see .env.example) — never hard-code secrets
+# here. The ${VAR:-default} fallbacks keep the stack bootable unconfigured for
+# local dev; override them in `.env` for anything shared or exposed.
+
+# Distinct project name so this stack gets its own containers and volumes
+# (teodb-prod_*), isolated from the rustfs / standalone dev stacks. Without
+# it all three compose files default to the parent directory name
+# ("docker") and silently share objectstore-data / pg-data, bleeding Iceberg
+# catalog state across stacks → spurious NotFound.
+name: teodb-prod
+
+services:
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      # Single data dir. The upstream four-dir layout (/data/rustfs{0..3}) turns
+      # on erasure coding, which refuses to start unless each dir is a distinct
+      # physical disk — four dirs in one Docker volume all resolve to the same
+      # device. A real multi-disk deployment should mount one volume per dir.
+      RUSTFS_VOLUMES: /data/rustfs0
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      RUSTFS_SECRET_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      RUSTFS_OBS_LOGGER_LEVEL: info
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - objectstore-data:/data
+    restart: unless-stopped
+    networks:
+      - teodb
+
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: ${TEODB_PG_DB:-iceberg_catalog}
+      POSTGRES_USER: ${TEODB_PG_USER:-iceberg}
+      POSTGRES_PASSWORD: ${TEODB_PG_PASSWORD:-iceberg}
+    volumes:
+      - pg-data:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEODB_PG_USER:-iceberg} -d ${TEODB_PG_DB:-iceberg_catalog}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - teodb
+
+  # RustFS ships no readiness probe we can rely on across image revisions, so the
+  # bucket bootstrap polls the S3 endpoint itself and every dependent service
+  # gates on this container exiting successfully.
+  bucket-init:
+    image: amazon/aws-cli:latest
+    depends_on:
+      - rustfs
+    environment:
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 60); do
+          aws --endpoint-url http://rustfs:9000 s3 ls >/dev/null 2>&1 && break
+          echo 'waiting for rustfs...'; sleep 2
+        done
+        aws --endpoint-url http://rustfs:9000 s3 mb s3://teodb 2>/dev/null || true
+        echo 'Bucket teodb ready'
+    restart: "no"
+    networks:
+      - teodb
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest:latest
+    environment:
+      CATALOG_WAREHOUSE: s3://teodb/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://rustfs:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_URI: jdbc:postgresql://postgres:5432/${TEODB_PG_DB:-iceberg_catalog}
+      CATALOG_JDBC_USER: ${TEODB_PG_USER:-iceberg}
+      CATALOG_JDBC_PASSWORD: ${TEODB_PG_PASSWORD:-iceberg}
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      bucket-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8181'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - teodb
+
+  teodb-control-plane:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    command: ["--config", "/app/config/control-plane.toml"]
+    volumes:
+      - ./config/control-plane.toml:/app/config/control-plane.toml:ro
+      - control-plane-data:/app/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://rustfs:9000
+    restart: unless-stopped
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+    healthcheck:
+      # The control plane is gRPC-only; probe the port via bash /dev/tcp.
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/50050'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks:
+      - teodb
+
+  teodb-data-node-1:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    # Each data node advertises its own service name so the control plane and peer
+    # executors can reach it by stable DNS, not a container IP.
+    command: ["--config", "/app/config/data-node.toml", "--executor-advertise-host", "teodb-data-node-1"]
+    volumes:
+      - ./config/data-node.toml:/app/config/data-node.toml:ro
+      - teodb-data-node-1-data:/app/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      TEODB__SECURITY__ADMIN_TOKEN: ${TEODB_ADMIN_TOKEN:-}
+      TEODB__CLUSTER__CLUSTER_ID: ${TEODB_CLUSTER_ID:-11111111-1111-1111-1111-111111111111}
+      TEODB__CLUSTER__NODE_ID: teodb-data-node-1
+      TEODB__CLUSTER__WRITER_SLOT: data-node-1
+    restart: unless-stopped
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+      teodb-control-plane:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    networks:
+      - teodb
+
+  teodb-data-node-2:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    # Each data node advertises its own service name so the control plane and peer
+    # executors can reach it by stable DNS, not a container IP.
+    command: ["--config", "/app/config/data-node.toml", "--executor-advertise-host", "teodb-data-node-2"]
+    volumes:
+      - ./config/data-node.toml:/app/config/data-node.toml:ro
+      - teodb-data-node-2-data:/app/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      TEODB__SECURITY__ADMIN_TOKEN: ${TEODB_ADMIN_TOKEN:-}
+      TEODB__CLUSTER__CLUSTER_ID: ${TEODB_CLUSTER_ID:-11111111-1111-1111-1111-111111111111}
+      TEODB__CLUSTER__NODE_ID: teodb-data-node-2
+      TEODB__CLUSTER__WRITER_SLOT: data-node-2
+    restart: unless-stopped
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+      teodb-control-plane:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    networks:
+      - teodb
+
+  teodb-data-node-3:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    # Each data node advertises its own service name so the control plane and peer
+    # executors can reach it by stable DNS, not a container IP.
+    command: ["--config", "/app/config/data-node.toml", "--executor-advertise-host", "teodb-data-node-3"]
+    volumes:
+      - ./config/data-node.toml:/app/config/data-node.toml:ro
+      - teodb-data-node-3-data:/app/data
+    environment:
+      AWS_ACCESS_KEY_ID: ${TEODB_S3_ACCESS_KEY:-teodbadmin}
+      AWS_SECRET_ACCESS_KEY: ${TEODB_S3_SECRET_KEY:-teodbadmin123}
+      AWS_REGION: ${TEODB_S3_REGION:-us-east-1}
+      AWS_ENDPOINT_URL: http://rustfs:9000
+      TEODB__SECURITY__ADMIN_TOKEN: ${TEODB_ADMIN_TOKEN:-}
+      TEODB__CLUSTER__CLUSTER_ID: ${TEODB_CLUSTER_ID:-11111111-1111-1111-1111-111111111111}
+      TEODB__CLUSTER__NODE_ID: teodb-data-node-3
+      TEODB__CLUSTER__WRITER_SLOT: data-node-3
+    restart: unless-stopped
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+      teodb-control-plane:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    networks:
+      - teodb
+
+  haproxy:
+    image: haproxy:lts-alpine
+    ports:
+      - "8080:8080"
+      - "8815:8815"
+      - "8404:8404"
+    volumes:
+      - ./haproxy/teodb-production.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    restart: unless-stopped
+    depends_on:
+      teodb-data-node-1:
+        condition: service_healthy
+      teodb-data-node-2:
+        condition: service_healthy
+      teodb-data-node-3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 && nc -z localhost 8815"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - teodb
+
+volumes:
+  objectstore-data:
+  pg-data:
+  control-plane-data:
+  teodb-data-node-1-data:
+  teodb-data-node-2-data:
+  teodb-data-node-3-data:
+
+networks:
+  teodb:
+    driver: bridge

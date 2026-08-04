@@ -1,0 +1,104 @@
+[package]
+name = "teodb-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "TeoDB server binary — composes all crates into a running OLAP database"
+license.workspace = true
+
+[[bin]]
+name = "teodb"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace crates
+teodb-core = { path = "../teodb-core" }
+teodb-storage = { path = "../teodb-storage" }
+teodb-catalog = { path = "../teodb-catalog" }
+teodb-query = { path = "../teodb-query" }
+teodb-ingest = { path = "../teodb-ingest" }
+teodb-distributed = { path = "../teodb-distributed" }
+teodb-api = { path = "../teodb-api" }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Networking
+axum = { workspace = true }
+axum-server = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+arrow-flight = { workspace = true }
+http = { workspace = true }
+http-body = { workspace = true }
+
+# TLS
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+prometheus = { workspace = true }
+
+# Error handling
+eyre = { workspace = true }
+color-eyre = { workspace = true }
+thiserror = { workspace = true }
+
+# Maintenance interval jitter
+rand = { workspace = true }
+
+# Memory allocator
+mimalloc = { workspace = true }
+
+# Embedded UI
+rust-embed = { workspace = true }
+mime_guess = "2"
+
+# Configuration
+config = { workspace = true }
+toml = { workspace = true }
+
+# Object storage
+object_store = { workspace = true }
+
+# System identity
+gethostname = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# JWT validator construction (security.jwt_* config)
+jsonwebtoken = { workspace = true }
+
+# Identifiers
+uuid = { workspace = true }
+
+[dev-dependencies]
+teodb-test-support = { path = "../teodb-test-support", features = ["http-app"] }
+tempfile = { workspace = true }
+uuid = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+axum = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+arrow = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+prost = { workspace = true }
+testcontainers-modules = { version = "0.15.0", features = ["postgres", "rustfs"] }
+
+[lints]
+workspace = true

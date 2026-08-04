@@ -1,0 +1,69 @@
+[package]
+name = "teodb-distributed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Distributed execution, partition assignment, and compaction for TeoDB"
+license.workspace = true
+
+[dependencies]
+# Workspace crates
+teodb-core = { path = "../teodb-core" }
+teodb-query = { path = "../teodb-query" }
+teodb-storage = { path = "../teodb-storage" }
+
+# Hashing
+# Async
+backon = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+# HTTP (scheduler REST API client)
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest-tracing = { workspace = true }
+
+# Arrow / DataFusion
+arrow = { workspace = true }
+datafusion = { workspace = true }
+datafusion-proto = { workspace = true }
+parquet = { workspace = true }
+
+# Ballista
+ballista-core = { workspace = true }
+ballista-scheduler = { workspace = true }
+ballista-executor = { workspace = true }
+
+# Concurrency
+moka = { workspace = true }
+papaya = { workspace = true }
+parking_lot = { workspace = true }
+
+# Observability
+tracing = { workspace = true }
+
+# Date/Time
+chrono = { workspace = true }
+
+# Identifiers
+uuid = { workspace = true }
+
+# Binary data
+bytes = { workspace = true }
+
+# Storage
+object_store = { workspace = true }
+tonic = { workspace = true }
+
+[dev-dependencies]
+teodb-test-support = { path = "../teodb-test-support" }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

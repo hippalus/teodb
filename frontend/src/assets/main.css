@@ -1,0 +1,233 @@
+@import 'tailwindcss';
+@import 'tailwindcss-primeui';
+
+:root {
+  --teo-primary: #6366f1;
+  --teo-sidebar-width: 260px;
+  --teo-app-bg: var(--p-surface-50);
+  --teo-app-text: var(--p-text-color);
+  --teo-card-bg: var(--p-surface-0);
+  --teo-soft-bg: var(--p-surface-50);
+  --teo-soft-hover-bg: var(--p-surface-100);
+  --teo-border-color: var(--p-surface-200);
+  --teo-strong-text: var(--p-surface-800);
+  --teo-muted-text: var(--p-surface-500);
+  --teo-topbar-bg: var(--p-surface-0);
+  --teo-sidebar-bg: var(--p-surface-900);
+}
+
+.app-dark {
+  --teo-app-bg: var(--p-surface-950);
+  --teo-app-text: var(--p-surface-100);
+  --teo-card-bg: var(--p-surface-900);
+  --teo-soft-bg: var(--p-surface-800);
+  --teo-soft-hover-bg: var(--p-surface-700);
+  --teo-border-color: var(--p-surface-700);
+  --teo-strong-text: var(--p-surface-50);
+  --teo-muted-text: var(--p-surface-300);
+  --teo-topbar-bg: var(--p-surface-900);
+  --teo-sidebar-bg: var(--p-surface-950);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--teo-app-bg);
+  color: var(--teo-app-text);
+}
+
+.layout-wrapper {
+  min-height: 100vh;
+  background: var(--teo-app-bg);
+  color: var(--teo-app-text);
+}
+
+.layout-sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--teo-sidebar-width);
+  height: 100vh;
+  z-index: 999;
+  overflow-y: auto;
+  background: var(--teo-sidebar-bg);
+  transition: transform 0.3s ease;
+}
+
+.layout-wrapper.layout-static-inactive .layout-sidebar {
+  transform: translateX(-100%);
+}
+
+.layout-main-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin-left: var(--teo-sidebar-width);
+  background: var(--teo-app-bg);
+  transition: margin-left 0.3s ease;
+}
+
+.layout-wrapper.layout-static-inactive .layout-main-container {
+  margin-left: 0;
+}
+
+.layout-main {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.layout-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 997;
+  background: var(--teo-topbar-bg);
+  border-color: var(--teo-border-color);
+}
+
+.layout-mask {
+  display: none;
+  border: 0;
+  padding: 0;
+  appearance: none;
+  background: transparent;
+}
+
+@media (max-width: 991px) {
+  .layout-wrapper.layout-static-inactive .layout-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .layout-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .layout-sidebar.active {
+    transform: translateX(0);
+  }
+
+  .layout-main-container {
+    margin-left: 0;
+  }
+
+  .layout-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 998;
+    background: rgb(15 23 42 / 0.48);
+    backdrop-filter: blur(2px);
+  }
+}
+
+.cm-editor {
+  height: 100%;
+  font-size: 14px;
+}
+
+.cm-editor .cm-scroller {
+  overflow: auto;
+}
+
+.card {
+  background: var(--teo-card-bg);
+  border: 1px solid var(--teo-border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.app-dark .bg-surface-0,
+.app-dark .bg-surface-50,
+.app-dark .bg-surface-100 {
+  background-color: var(--teo-soft-bg) !important;
+}
+
+.app-dark .hover\:bg-surface-100:hover {
+  background-color: var(--teo-soft-hover-bg) !important;
+}
+
+.app-dark .border-surface-200,
+.app-dark .border-surface-300 {
+  border-color: var(--teo-border-color) !important;
+}
+
+.app-dark .text-surface-800,
+.app-dark .text-surface-700,
+.app-dark .text-surface-600 {
+  color: var(--teo-strong-text) !important;
+}
+
+.app-dark .text-surface-500,
+.app-dark .text-surface-400 {
+  color: var(--teo-muted-text) !important;
+}
+
+.app-dark .layout-topbar {
+  background: var(--teo-topbar-bg) !important;
+  border-color: var(--teo-border-color) !important;
+}
+
+.app-dark .layout-sidebar {
+  background: var(--teo-sidebar-bg) !important;
+}
+
+.app-dark .bg-blue-100 {
+  background-color: rgb(30 64 175 / 0.32) !important;
+}
+
+.app-dark .text-blue-600 {
+  color: rgb(147 197 253) !important;
+}
+
+.app-dark .bg-green-100 {
+  background-color: rgb(22 101 52 / 0.32) !important;
+}
+
+.app-dark .text-green-600 {
+  color: rgb(134 239 172) !important;
+}
+
+.app-dark .bg-indigo-100 {
+  background-color: rgb(67 56 202 / 0.32) !important;
+}
+
+.app-dark .text-indigo-600 {
+  color: rgb(165 180 252) !important;
+}
+
+.app-dark .bg-purple-100 {
+  background-color: rgb(126 34 206 / 0.32) !important;
+}
+
+.app-dark .text-purple-600 {
+  color: rgb(216 180 254) !important;
+}
+
+.app-dark .bg-red-100 {
+  background-color: rgb(153 27 27 / 0.32) !important;
+}
+
+.app-dark .text-red-600 {
+  color: rgb(252 165 165) !important;
+}

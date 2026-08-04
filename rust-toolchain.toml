@@ -1,0 +1,4 @@
+[toolchain]
+channel = "1.97.1"  # or "stable" for latest
+components = ["rustfmt", "clippy", "rust-analyzer", "rust-src"]
+profile = "minimal"

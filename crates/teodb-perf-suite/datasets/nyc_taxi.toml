@@ -1,0 +1,16 @@
+# NYC TLC green-taxi trip records (real Parquet).
+#
+# Downloaded from the official TLC CloudFront mirror, then loaded through the
+# normal client ingest path: the perf-suite reads the Parquet locally, converts
+# rows to JSON, and POSTs them to /api/v1/tables/.../ingest (the same path the
+# multi-table TPC-H managed-ingest uses). Only the columns the sql/flat queries
+# touch are declared; the table schema projects the file down to them, so the
+# file's other columns are ignored on ingest.
+
+name = "nyc_taxi"
+table_name = "nyc_taxi"
+source_kind = "external_parquet"
+load_mode = "external_parquet"
+download_url = "https://d37ci6vzurychx.cloudfront.net/trip-data/green_tripdata_2023-01.parquet"
+output_name = "green_tripdata_2023-01.parquet"
+create_sql = "CREATE TABLE default.nyc_taxi (passenger_count BIGINT, trip_distance DOUBLE, fare_amount DOUBLE)"

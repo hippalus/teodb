@@ -1,0 +1,27 @@
+# Example overlay: single-process standalone (dev/test).
+#   helm install teodb deploy/helm/teodb -f deploy/helm/teodb/values-standalone.yaml
+mode: standalone
+
+# Point at an in-cluster RustFS + Iceberg REST catalog.
+catalog:
+  uri: http://iceberg-rest:8181
+  warehouse: s3://teodb
+
+storage:
+  endpoint: http://rustfs:9000
+  region: us-east-1
+  allowHttp: true
+
+secret:
+  create: true
+  s3AccessKey: teodbadmin
+  s3SecretKey: teodbadmin123
+  adminToken: dev-admin-token
+
+standalone:
+  persistence:
+    wal:
+      size: 2Gi
+    cache:
+      enabled: true
+      size: 4Gi

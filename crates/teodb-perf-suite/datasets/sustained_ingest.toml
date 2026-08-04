@@ -1,0 +1,8 @@
+name = "sustained_ingest"
+table_name = "sustained_metrics"
+source_kind = "synthetic_managed_json"
+load_mode = "managed_json"
+output_name = "sustained_ingest.json"
+rows = 50000
+ingest_batch_size = 100
+create_sql = "CREATE TABLE sustained_metrics (timestamp TIMESTAMP NOT NULL, sensor_id STRING TAG, value DOUBLE, region STRING TAG) WITH (partition_by='HOUR')"

@@ -1,0 +1,46 @@
+{{- if eq .Values.mode "standalone" }}
+# Headless Service backing the StatefulSet (stable DNS).
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teodb.fullname" . }}-headless
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: standalone
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "standalone") | nindent 4 }}
+  ports:
+    - name: rest
+      port: {{ .Values.service.restPort }}
+      targetPort: rest
+    - name: flight
+      port: {{ .Values.service.flightPort }}
+      targetPort: flight
+---
+# Client-facing Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teodb.fullname" . }}
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: standalone
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "standalone") | nindent 4 }}
+  ports:
+    - name: rest
+      port: {{ .Values.service.restPort }}
+      targetPort: rest
+    - name: flight
+      port: {{ .Values.service.flightPort }}
+      targetPort: flight
+{{- end }}

@@ -1,0 +1,33 @@
+{{- if and .Values.networkPolicy.enabled (eq .Values.mode "cluster") }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "teodb.fullname" . }}-internal
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "teodb.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Public REST + Flight: reachable from anywhere.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.service.restPort }}
+        - protocol: TCP
+          port: {{ .Values.service.flightPort }}
+    # Internal Ballista gRPC (control plane + executor): teodb pods of this release only.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "teodb.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.internalPorts.controlPlane }}
+        - protocol: TCP
+          port: {{ .Values.internalPorts.executorBind }}
+        - protocol: TCP
+          port: {{ .Values.internalPorts.executorGrpc }}
+{{- end }}

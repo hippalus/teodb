@@ -1,0 +1,6 @@
+name = "tpch"
+dataset_manifest = "../datasets/tpch.toml"
+sql_dir = "../sql/tpch"
+transport = "both"
+warmup_runs = 2
+measured_runs = 5

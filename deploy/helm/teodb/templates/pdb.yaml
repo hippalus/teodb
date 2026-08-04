@@ -1,0 +1,18 @@
+{{- if and .Values.podDisruptionBudget.enabled (eq .Values.mode "cluster") (gt (int .Values.dataNode.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "teodb.fullname" . }}-data-node
+  labels:
+    {{- include "teodb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data-node
+spec:
+  {{- if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "teodb.componentSelectorLabels" (dict "root" . "role" "data-node") | nindent 6 }}
+{{- end }}

@@ -1,0 +1,33 @@
+[package]
+name = "teodb-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP and Arrow Flight SQL client library for TeoDB"
+
+[dependencies]
+# Networking
+reqwest = { workspace = true }
+reqwest-middleware = { workspace = true }
+reqwest-retry = { workspace = true }
+reqwest-tracing = { workspace = true }
+tonic = { workspace = true }
+
+# Arrow / Flight
+arrow = { workspace = true }
+arrow-flight = { workspace = true }
+
+# Async
+futures = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+url = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

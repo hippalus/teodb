@@ -1,0 +1,76 @@
+# Example overlay: hardened production cluster.
+#   helm install teodb deploy/helm/teodb -f deploy/helm/teodb/values-production.yaml
+mode: cluster
+
+image:
+  pullPolicy: IfNotPresent
+
+catalog:
+  uri: http://iceberg-rest:8181
+  warehouse: s3://teodb
+
+cluster:
+  # Replace once per logical cluster and keep stable for its lifetime. If this
+  # remains empty, teodb-prod-secrets must contain the `cluster-id` key.
+  id: ""
+  maxWriterCheckpointsPerTable: 32
+
+storage:
+  # Real S3 — leave endpoint empty for AWS, allowHttp false.
+  region: us-east-1
+  allowHttp: false
+  cache:
+    enabled: true
+    maxBytes: 53687091200   # 50 GiB
+
+# Bring your own Secret (do not commit credentials).
+secret:
+  create: false
+  existingSecret: teodb-prod-secrets
+
+security:
+  mode: plaintext   # set to tls/oauth2 and supply dataNode.extraConfigToml
+
+dataNode:
+  replicas: 5
+  taskSlots: 8
+  resources:
+    requests:
+      cpu: "2"
+      memory: 8Gi
+    limits:
+      memory: 16Gi
+  persistence:
+    wal:
+      size: 20Gi
+      storageClass: fast-ssd
+    cache:
+      enabled: true
+      size: 200Gi
+      storageClass: fast-ssd
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: data-node
+
+controlPlane:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+
+serviceMonitor:
+  enabled: true
+  interval: 30s

@@ -1,0 +1,192 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "Modern OLAP database with columnar storage and DataFusion query engine"
+categories = ["database"]
+keywords = ["database", "olap", "columnar", "datafusion"]
+authors = ["TeoDB Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hippalus/teodb"
+exclude = [".gitignore", ".cargo/config"]
+
+[workspace.dependencies]
+# Core Async Runtime
+tokio = { version = "1", features = ["full", "tracing"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization (Latest)
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+
+# Storage & Core Components
+bytes = { version = "1", features = ["serde"] }
+papaya = "0.2"
+gethostname = "1"
+
+# Memory Allocator
+mimalloc = { version = "0.1" }
+
+# Compression (Kept for Parquet/columnar)
+crc32fast = "1.5"
+
+# Compression (Latest)
+lz4 = "1"
+zstd = "0.13"
+snap = "1"  # Snappy
+
+# Arrow & DataFusion
+# Pinned to the DataFusion/Arrow line required by Ballista 54 — bump all of
+# arrow/datafusion/ballista together when upgrading.
+arrow = { version = "58", features = ["prettyprint", "ipc"] }
+arrow-schema = { version = "58", features = ["serde"] }
+arrow-json = "58"
+arrow-flight = { version = "58", features = ["flight-sql-experimental"] }
+parquet = { version = "58", features = ["async", "object_store"] }
+datafusion = "54"
+datafusion-expr = "54"
+datafusion-common = "54"
+datafusion-execution = "54"
+datafusion-datasource-parquet = "54"
+datafusion-datasource = "54"
+datafusion-physical-expr = "54"
+datafusion-physical-expr-adapter = "54"
+datafusion-sql = "54"
+datafusion-proto = "54"
+
+# Object Storage
+object_store = { version = "0.13", features = ["aws", "http"] }
+
+ballista-core = { version = "54" }
+ballista-scheduler = { version = "54" }
+ballista-executor = { version = "54" }
+
+# Iceberg
+iceberg = "0.10"
+iceberg-catalog-rest = "0.10"
+iceberg-datafusion = "0.10"
+iceberg-storage-opendal = { version = "0.10", features = ["opendal-fs", "opendal-s3"] }
+
+# SQL Parser
+sqlparser = "0.62"
+
+# Networking - gRPC
+tonic = { version = "0.14", features = ["gzip", "tls-aws-lc"] }
+tonic-build = "0.14"
+tonic-prost = "0.14"
+tonic-prost-build = "0.14"
+prost = "0.14"
+prost-types = "0.14"
+
+# Networking - HTTP/REST
+axum = { version = "0.8", features = ["macros", "tracing", "json", "multipart"] }
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+axum-extra = { version = "0.12", features = ["typed-routing", "cookie", "query"] }
+axum-prometheus = "0.10"
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.7", features = ["fs", "trace", "cors", "request-id", "catch-panic", "compression-full", "limit", "timeout"] }
+http = "1"
+http-body = "1"
+http-body-util = "0.1"
+
+# TLS
+rustls = "0.23"
+rustls-pki-types = { version = "1", features = ["std"] }
+
+# Metrics & Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "time"] }
+tracing-appender = "0.2"
+tracing-opentelemetry = { version = "0.33"}
+opentelemetry = { version = "0.32", features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.32", features = ["trace", "grpc-tonic"] }
+prometheus = "0.14"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.18"
+
+# Error Handling
+thiserror = "2.0"
+eyre = "0.6"
+color-eyre = "0.6"
+
+# Builders & Retry
+bon = "3.9"
+backon = "1.6"
+
+# CLI & Configuration
+clap = { version = "4", features = ["derive", "env"] }
+config = { version = "0.15", features = ["toml"] }
+toml = "1"
+url = { version = "2", features = ["serde"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+reqwest-middleware = { version = "0.5", features = ["json", "query"] }
+reqwest-retry = "0.9"
+reqwest-tracing = "0.7"
+
+# Date/Time
+time = { version = "0.3", features = ["serde", "formatting", "parsing", "macros", "serde-human-readable"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4", "v5", "v7", "serde"] }
+base64 = "0.23"
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+
+# Random
+rand = "0.10"
+
+# Hashing
+ahash = "0.8"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+hex = "0.4"
+sha2 = "0.11"
+
+# Table formatting
+comfy-table = "7"
+
+# Development Tools
+parking_lot = "0.12"
+arc-swap = "1"
+moka = { version = "0.12", features = ["future", "sync"] }
+derive_more = { version = "2", features = ["full"] }
+fs2 = "0.4"
+
+# Testing
+proptest = "1"
+criterion = { version = "0.8", features = ["html_reports", "async_tokio"] }
+tempfile = "3"
+filetime = "0.2"
+
+# Embedded Assets
+rust-embed = { version = "8", features = ["axum"] }
+mime_guess = "2"
+
+# Benchmarking Extensions
+iai-callgrind = "0.16"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+large_futures = "warn"
+large_stack_arrays = "warn"
+large_types_passed_by_value = "warn"
+unused_async = "warn"
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

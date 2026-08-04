@@ -1,0 +1,32 @@
+name = "nested_events"
+table_name = "events"
+source_kind = "synthetic_nested_json"
+load_mode = "managed_ingest"
+rows = 1000000
+ingest_batch_size = 1000
+
+create_sql = """
+CREATE TABLE IF NOT EXISTS perf.events (
+    event_id VARCHAR NOT NULL,
+    event_type VARCHAR NOT NULL,
+    "timestamp" TIMESTAMP NOT NULL,
+    region VARCHAR NOT NULL,
+    "customer.id" BIGINT NOT NULL,
+    "customer.name" VARCHAR NOT NULL,
+    "customer.tier" VARCHAR NOT NULL,
+    "customer.address.city" VARCHAR,
+    "customer.address.state" VARCHAR,
+    "customer.address.country" VARCHAR NOT NULL,
+    "order.order_id" VARCHAR NOT NULL,
+    "order.total_amount" DOUBLE NOT NULL,
+    "order.currency" VARCHAR NOT NULL,
+    "order.items_count" INTEGER NOT NULL,
+    "order.payment_method" VARCHAR NOT NULL,
+    "order.shipping.method" VARCHAR NOT NULL,
+    "order.shipping.cost" DOUBLE NOT NULL,
+    "order.shipping.estimated_days" INTEGER NOT NULL,
+    "metadata.source" VARCHAR NOT NULL,
+    "metadata.user_agent" VARCHAR,
+    "metadata.session_id" VARCHAR NOT NULL
+) PARTITIONED BY (region)
+"""

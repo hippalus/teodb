@@ -1,0 +1,9 @@
+name = "synthetic_managed"
+table_name = "synthetic_metrics"
+source_kind = "synthetic_managed_json"
+load_mode = "managed_json"
+output_name = "synthetic_managed.json"
+rows = 5000
+ingest_batch_size = 500
+create_sql = "CREATE TABLE synthetic_metrics (timestamp TIMESTAMP NOT NULL, sensor_id STRING TAG, temperature DOUBLE) WITH (partition_by='HOUR', retention='7d')"
+

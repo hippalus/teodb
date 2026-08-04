@@ -1,0 +1,61 @@
+[package]
+name = "teodb-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Storage abstraction, Parquet write/read, WAL, and cache for TeoDB"
+categories.workspace = true
+keywords.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+teodb-core = { path = "../teodb-core" }
+
+# Storage
+object_store = { workspace = true }
+parquet = { workspace = true }
+arrow = { workspace = true }
+arrow-schema = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+
+# Hashing / IDs
+xxhash-rust = { workspace = true }
+uuid = { workspace = true }
+crc32fast = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+ahash = { workspace = true }
+parking_lot = { workspace = true }
+papaya = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+fs2 = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+
+[[bench]]
+name = "parquet_write"
+harness = false
+
+[[bench]]
+name = "wal_append"
+harness = false
+
+[lints]
+workspace = true

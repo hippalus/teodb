@@ -1,0 +1,62 @@
+# TeoDB Local Development — run with:
+#
+#   1. Start infrastructure (RustFS + Iceberg REST catalog):
+#      docker compose -f deploy/docker/docker-compose.rustfs.yaml up -d
+#
+#   2. Run TeoDB:
+#      cargo run -p teodb-server -- --config config/dev.toml
+#
+#   Or in your IDE, set program arguments to:
+#      --config config/dev.toml
+
+role = "standalone"
+data_dir = "./data"
+
+[server]
+rest_bind = "127.0.0.1:8080"
+flight_bind = "127.0.0.1:8815"
+
+[catalog]
+type = "rest"
+uri = "http://localhost:8181"
+warehouse = "s3://teodb"
+
+[wal]
+fsync_on_append = true          # faster dev iteration; enable in production
+# recovery_mode = "fail"        # "fail" (default): abort startup on corrupt WAL segment;
+                                # "salvage": quarantine segment as *.wal.corrupt and continue
+
+[storage]
+cache_max_bytes = 0              # disable SSD cache for dev
+s3_endpoint = "http://localhost:19000"
+s3_access_key = "teodbadmin"
+s3_secret_key = "teodbadmin123"
+s3_region = "us-east-1"
+s3_allow_http = true
+
+[query]
+memory_pool_bytes = 2147483648   # 2 GiB
+batch_size = 8192
+query_timeout_secs = 300
+
+[ingest]
+buffer_max_bytes = 268435456     # 256 MiB
+flush_interval_secs = 30
+
+[security]
+mode = "plaintext"
+
+[observability]
+log_level = "info"
+log_format = "pretty"
+# otlp_endpoint = "http://localhost:4317"  # uncomment to export traces via OTLP gRPC
+# service_name = "teodb-dev"
+
+[runtime]
+worker_threads = 4
+
+[shutdown]
+drain_timeout_secs = 5
+
+[maintenance]
+enabled = false                  # disable background maintenance for dev

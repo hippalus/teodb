@@ -1,0 +1,39 @@
+[package]
+name = "teodb-test-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+description = "Shared test doubles and fixtures for TeoDB crate tests (dev-dependency only)."
+
+[lints]
+workspace = true
+
+[features]
+default = []
+http-app = [
+    "dep:axum",
+    "dep:tempfile",
+    "dep:teodb-api",
+    "dep:teodb-ingest",
+    "dep:teodb-query",
+]
+
+[dependencies]
+teodb-core = { path = "../teodb-core" }
+teodb-api = { path = "../teodb-api", optional = true }
+teodb-ingest = { path = "../teodb-ingest", optional = true }
+teodb-query = { path = "../teodb-query", optional = true }
+teodb-storage = { path = "../teodb-storage" }
+async-trait = { workspace = true }
+axum = { workspace = true, optional = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+object_store = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+tempfile = { workspace = true, optional = true }

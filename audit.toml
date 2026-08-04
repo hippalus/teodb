@@ -1,0 +1,49 @@
+# cargo-audit configuration for teodb.
+#
+# Advisories listed here are suppressions for issues that cannot be fixed
+# by upgrading a direct dependency.  Each entry includes a justification.
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack timing side-channel in the `rsa` crate.
+    #
+    # Pulled in transitively by `jsonwebtoken` (no patch available as of this
+    # writing; the upstream crate is still working on a constant-time
+    # implementation).  TeoDB only uses HS256 (HMAC-SHA256) for JWT signing and
+    # verification — RSA JWT algorithms (RS*, PS*) are never configured or
+    # called.  The attack requires an adversary to observe many decryption
+    # timings, which cannot happen when RSA decryption is never exercised.
+    # Revisit when jsonwebtoken ships a release that either drops `rsa` or
+    # depends on a patched version.
+    "RUSTSEC-2023-0071",
+
+    # RUSTSEC-2024-0436: `paste` is unmaintained.
+    #
+    # `paste` is a transitive dependency pulled in by `datafusion` and
+    # `arrow-flight`.  We do not depend on it directly and cannot remove it
+    # without forking those upstream crates.  It is a proc-macro with no
+    # runtime behaviour and no known exploitable vulnerability; the advisory
+    # is informational only.  Revisit when datafusion/arrow drop the dep.
+    "RUSTSEC-2024-0436",
+
+    # RUSTSEC-2026-0194 / RUSTSEC-2026-0195: quadratic start-tag attribute
+    # scanning and unbounded namespace-declaration allocation in `quick-xml`,
+    # both denial-of-service.  Fixed in quick-xml 0.41.0.
+    #
+    # Reached only through `object_store` 0.13.2, which requires `quick-xml
+    # ^0.39` — 0.41 is semver-incompatible, so cargo cannot select it, and
+    # 0.39.4 is the newest 0.39.x (no backport).  Moving to `object_store` 0.14
+    # is not an option either: DataFusion 54 and Ballista 54 both pin
+    # `object_store 0.13.2`, so a 0.14 bump links two copies of the crate the
+    # same way an out-of-line arrow bump does.
+    #
+    # `object_store` uses quick-xml only to parse responses from the configured
+    # S3 endpoint (list results, multipart results, error bodies).  Triggering
+    # either advisory requires the object store to return hostile XML, i.e. an
+    # attacker who already controls or is intercepting the bucket holding every
+    # table — at which point denial of service is not the marginal risk.
+    # Revisit when `object_store` ships a release depending on quick-xml
+    # >= 0.41 that the pinned DataFusion/Ballista line accepts.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]

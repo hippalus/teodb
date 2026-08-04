@@ -1,0 +1,11 @@
+# CI-only immutable image pins. The developer compose file remains the topology
+# source; update these digests deliberately when refreshing infrastructure.
+services:
+  rustfs:
+    image: rustfs/rustfs@sha256:41fe89380f4120a337790c02af192c3fe7bb55c3edc2e6e9357b487b47c6ab21
+  bucket-init:
+    image: amazon/aws-cli@sha256:96db65a10383b131af10ff22d6b9eb57eccc4eb65d0ef388ff8368505e22ba1c
+  postgres:
+    image: postgres@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
+  iceberg-rest:
+    image: tabulario/iceberg-rest@sha256:3b7d31bdfec626b68e97531c9778a1b9119659e456fe28545a49f6aa6a9ce472

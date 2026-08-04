@@ -1,0 +1,264 @@
+# Default values for the teodb chart.
+# Precedence at runtime (highest wins): CLI flags > env (TEODB__*) > TOML > defaults.
+# This chart renders the TOML (ConfigMap) and injects secrets/identity via env.
+
+# -- Deployment topology.
+#    "cluster":    one control-plane Deployment + a data-node StatefulSet.
+#    "standalone": a single all-in-one StatefulSet.
+mode: cluster
+
+image:
+  repository: ghcr.io/hippalus/teodb
+  # -- Image tag. Defaults to the chart appVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  # -- Create a Role granting read on pods/endpoints (handy for peer discovery
+  #    tooling and operators inspecting the StatefulSet). The server itself does
+  #    not require the API; disable if your policy forbids extra RBAC.
+  create: true
+
+# Iceberg REST catalog, shared by every role.
+catalog:
+  type: rest
+  uri: http://iceberg-rest:8181
+  warehouse: s3://teodb
+
+# Object store (S3-compatible). Credentials live in the Secret (see `secret`).
+storage:
+  # -- S3 endpoint URL. Empty uses the AWS default resolver. For RustFS set e.g.
+  #    http://rustfs:9000 and allowHttp: true.
+  endpoint: ""
+  region: us-east-1
+  allowHttp: false
+  cache:
+    # -- SSD read-through cache. When disabled, cache_max_bytes is set to 0.
+    enabled: true
+    maxBytes: 10737418240          # 10 GiB
+    maxPerObjectBytes: 536870912   # 512 MiB
+
+# S3 credentials and the admin bearer token.
+secret:
+  # -- Create a Secret from the values below. Ignored when existingSecret is set.
+  create: true
+  # -- Reference a pre-existing Secret instead of creating one. Must contain
+  #    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and (optionally) admin-token.
+  existingSecret: ""
+  s3AccessKey: ""
+  s3SecretKey: ""
+  # -- Bearer token guarding admin endpoints and /metrics. Empty leaves them
+  #    unauthenticated (a startup warning is logged).
+  adminToken: ""
+  # Keys read from the Secret (override only to match an existingSecret layout).
+  keys:
+    s3AccessKey: AWS_ACCESS_KEY_ID
+    s3SecretKey: AWS_SECRET_ACCESS_KEY
+    adminToken: admin-token
+    # Required in an existing Secret when cluster.id is empty.
+    clusterId: cluster-id
+
+security:
+  # -- plaintext | tls | oauth2. TLS/oauth2 require additional config you can
+  #    supply via the per-role extraConfigToml escape hatch.
+  mode: plaintext
+
+observability:
+  logLevel: info
+  logFormat: json
+
+shutdown:
+  drainTimeoutSecs: 30
+
+# Client-facing REST/Flight Service (cluster: fronts data-node pods; standalone: the pod).
+service:
+  type: ClusterIP
+  restPort: 8080
+  flightPort: 8815
+  annotations: {}
+
+# -- Cluster heartbeat tuning, shared by data nodes and the control plane.
+cluster:
+  # -- Stable cluster UUID shared by every data node. When empty and the chart
+  #    manages the Secret, one is generated and stored durably in that Secret.
+  #    With existingSecret, either set this value or provide the clusterId key.
+  id: ""
+  # -- Hard bound on writer checkpoint properties stored per Iceberg table.
+  maxWriterCheckpointsPerTable: 32
+  heartbeatIntervalSecs: 5
+  heartbeatMissThreshold: 3
+  # -- Readiness executor-quorum: /ready stays not-ready until this many live
+  #    executors are registered. 0 falls back to a plain TCP check.
+  minExecutors: 1
+
+maintenance:
+  # -- Snapshot expiration is unsafe until its dedicated metadata-commit
+  #    protocol lands. Keep zero in production.
+  snapshotRetentionSecs: 0
+
+# ---------------------------------------------------------------------------
+# Homogeneous production data node (mode: cluster)
+# ---------------------------------------------------------------------------
+dataNode:
+  replicas: 3
+  # -- Per-role image override; falls back to top-level `image` when empty.
+  image: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  # Ballista executor task slots per data node.
+  taskSlots: 4
+  query:
+    memoryPoolBytes: 4294967296    # 4 GiB
+    batchSize: 8192
+  ingest:
+    bufferMaxBytes: 536870912      # 512 MiB
+    flushIntervalSecs: 10
+  wal:
+    fsyncOnAppend: true
+    maxPreparedFiles: 10000
+    maxPreparedBytes: 16777216
+  persistence:
+    # WAL / data dir — required, durable.
+    wal:
+      size: 10Gi
+      storageClass: ""
+      accessModes: ["ReadWriteOnce"]
+    # SSD cache — optional PVC; falls back to emptyDir when disabled.
+    cache:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+      accessModes: ["ReadWriteOnce"]
+  # -- Raw TOML appended verbatim to the rendered data-node config (escape hatch for
+  #    knobs this chart does not surface, e.g. tls/oauth2/maintenance tuning).
+  extraConfigToml: ""
+
+# ---------------------------------------------------------------------------
+# Active control plane (mode: cluster)
+# ---------------------------------------------------------------------------
+controlPlane:
+  # V1 runs one active control plane. Recreate strategy avoids two instances
+  # briefly co-existing during a rollout.
+  replicas: 1
+  image: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessModes: ["ReadWriteOnce"]
+  grpcPort: 50050
+  extraConfigToml: ""
+
+# ---------------------------------------------------------------------------
+# Single-process standalone (mode: standalone)
+# ---------------------------------------------------------------------------
+standalone:
+  image: {}
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  taskSlots: 4
+  query:
+    memoryPoolBytes: 4294967296
+    batchSize: 8192
+  ingest:
+    bufferMaxBytes: 536870912
+    flushIntervalSecs: 10
+  wal:
+    fsyncOnAppend: true
+    maxPreparedFiles: 10000
+    maxPreparedBytes: 16777216
+  persistence:
+    wal:
+      size: 10Gi
+      storageClass: ""
+      accessModes: ["ReadWriteOnce"]
+    cache:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+      accessModes: ["ReadWriteOnce"]
+  extraConfigToml: ""
+
+# Internal gRPC ports (executor + control plane). Used by NetworkPolicy.
+internalPorts:
+  controlPlane: 50050
+  executorBind: 50051
+  executorGrpc: 50052
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: teodb.local
+  # Path on the host routed to the REST service.
+  path: /
+  pathType: Prefix
+  tls: []
+
+serviceMonitor:
+  # Requires the Prometheus Operator CRDs.
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  # Extra labels so a Prometheus instance's serviceMonitorSelector matches.
+  labels: {}
+  # Bearer token secret for scraping /metrics when an admin token is set.
+  bearerTokenSecret: {}
+
+networkPolicy:
+  # Restrict the internal gRPC ports (50050-50052) to teodb pods only.
+  enabled: false
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: ""   # set one of minAvailable/maxUnavailable
+
+# Probe tuning (REST /live and /ready on data-node & standalone; control-plane is gRPC).
+probes:
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+  readiness:
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 6
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+
+# Pod security defaults (runtime image runs as root by default; override here).
+podSecurityContext: {}
+securityContext: {}
+
+# Extra env injected into every teodb container.
+extraEnv: []
