@@ -150,7 +150,7 @@ hex = "0.4"
 sha2 = "0.11"
 
 # Table formatting
-comfy-table = "7"
+comfy-table = "8"
 
 # Development Tools
 parking_lot = "0.12"
