@@ -62,7 +62,7 @@ datafusion-sql = "54"
 datafusion-proto = "54"
 
 # Object Storage
-object_store = { version = "0.13", features = ["aws", "http"] }
+object_store = { version = "0.14", features = ["aws", "http"] }
 
 ballista-core = { version = "54" }
 ballista-scheduler = { version = "54" }
