@@ -1109,9 +1109,9 @@ dependencies = [
 
 [[package]]
 name = "ballista-core"
-version = "54.0.0"
+version = "54.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cb77c44dde3d4a1a4a7c415707f78399627d96e4f1a62cb94ac81cacff8a389"
+checksum = "7064c1552c4cbd90336a6a3111cb2a6dc9810f6464ca941ddf6d4776f976c868"
 dependencies = [
  "arrow-flight",
  "async-trait",
@@ -1145,9 +1145,9 @@ dependencies = [
 
 [[package]]
 name = "ballista-executor"
-version = "54.0.0"
+version = "54.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16060c35ab004ffdf81173f71f2e54a2dc128cd627b8d4f9a9c20da9d7e0a02c"
+checksum = "1a82eca4900634624e18434dfaa97490e8609736816abfa205b04fba5ef01e30"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -1180,9 +1180,9 @@ dependencies = [
 
 [[package]]
 name = "ballista-scheduler"
-version = "54.0.0"
+version = "54.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8789717042777ccbe9f255de073030ceedc74bb2fc4c8a86ac2b1854e5a6f3b"
+checksum = "2b9f769d5e09fa5d6d87efa951d063cc389e2ac5dc5020cfc2db6d1bf846c869"
 dependencies = [
  "arrow-flight",
  "async-trait",
@@ -3149,7 +3149,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5699,7 +5699,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "petgraph",
@@ -5720,7 +5720,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -5871,7 +5871,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6442,7 +6442,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6501,7 +6501,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6638,7 +6638,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b55fb86dfd3a2f5f76ea78310a88f96c4ea21a3031f8d212443d56123fd0521"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7173,7 +7173,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8463,7 +8463,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
