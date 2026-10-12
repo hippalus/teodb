@@ -151,7 +151,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
         with:
           node-version: 22
           cache: npm
@@ -181,7 +181,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Docker Buildx CLI
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
         with:
           driver: docker
 
@@ -202,7 +202,7 @@ jobs:
           (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
           (github.event_name == 'workflow_dispatch' && inputs.full_container_build) ||
           (github.event_name == 'workflow_call' && inputs.full_container_build)
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: deploy/docker/Dockerfile
@@ -223,7 +223,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Docker Buildx CLI
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
         with:
           driver: docker
 
@@ -232,7 +232,7 @@ jobs:
         run: bash scripts/ci/setup-buildx-builder.sh "$BUILDKIT_IMAGE"
 
       - name: Build TeoDB image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: deploy/docker/Dockerfile
